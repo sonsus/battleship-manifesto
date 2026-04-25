@@ -83,13 +83,13 @@ export class LMOnlyStrategy implements Strategy {
       ]);
     } catch (error) {
       console.warn(`[lm-only] LLM call failed at turn ${turnNumber}:`, error);
-      return this.fallbackShoot(revealed);
+      return this.fallbackShoot(ctx, revealed);
     }
 
     const parsed = parseResponse(response);
     if (!parsed) {
       console.warn(`[lm-only] Could not parse LLM response: ${truncate(response)}`);
-      return this.fallbackShoot(revealed);
+      return this.fallbackShoot(ctx, revealed);
     }
 
     if (parsed.kind === "shoot") {
@@ -97,14 +97,14 @@ export class LMOnlyStrategy implements Strategy {
       const idx = cellIdToIndex(cellId);
       if (idx < 0 || idx >= TOTAL_CELLS || revealed.has(idx)) {
         console.warn(`[lm-only] Invalid shoot target "${parsed.arg}" at turn ${turnNumber}`);
-        return this.fallbackShoot(revealed);
+        return this.fallbackShoot(ctx, revealed);
       }
       return { action: "shoot", cellId };
     }
 
     if (questionsRemaining <= 0) {
       console.warn(`[lm-only] LLM asked a question with budget 0 at turn ${turnNumber}`);
-      return this.fallbackShoot(revealed);
+      return this.fallbackShoot(ctx, revealed);
     }
 
     const candidate = availableQuestions.find((q) => q.id === parsed.arg)
@@ -112,8 +112,9 @@ export class LMOnlyStrategy implements Strategy {
       ?? availableQuestions.find((q) => q.text.toLowerCase() === parsed.arg.toLowerCase());
 
     if (!candidate) {
-      console.warn(`[lm-only] LLM picked unknown question id "${parsed.arg}"`);
-      return this.fallbackShoot(revealed);
+      const reason = ctx.askedQuestions.has(parsed.arg) ? "already-asked" : "unknown";
+      console.warn(`[lm-only] LLM picked ${reason} question id "${parsed.arg}"`);
+      return this.fallbackShoot(ctx, revealed);
     }
 
     ctx.askedQuestions.add(candidate.id);
@@ -126,13 +127,16 @@ export class LMOnlyStrategy implements Strategy {
     };
   }
 
-  private fallbackShoot(revealed: Set<number>): TurnDecision {
+  private fallbackShoot(ctx: TurnContext, revealed: Set<number>): TurnDecision {
+    const candidates: number[] = [];
     for (let i = 0; i < TOTAL_CELLS; i++) {
-      if (!revealed.has(i)) {
-        return { action: "shoot", cellId: indexToCellId(i) };
-      }
+      if (!revealed.has(i)) candidates.push(i);
     }
-    return { action: "shoot", cellId: indexToCellId(0) };
+    if (candidates.length === 0) {
+      return { action: "shoot", cellId: indexToCellId(0) };
+    }
+    const picked = candidates[ctx.rng.nextInt(candidates.length)] ?? candidates[0];
+    return { action: "shoot", cellId: indexToCellId(picked) };
   }
 
   private formatQuestionLog(ctx: TurnContext): string {
