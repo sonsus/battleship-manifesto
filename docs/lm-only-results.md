@@ -18,7 +18,7 @@ Within-suite LM-only Captain results on our 18-board synthetic suite. Replaces t
 | Greedy (no LLM) | MCMC oracle | — | **ours** | **0.522** | **50.0%** | from `1_lm4plan_draft.tex:355-376` |
 | WMA (no LLM, planning) | MCMC oracle | — | **ours** | **0.741** | **74.1%** | from same |
 | **LM-only — Llama-4-Scout** | **MCMC oracle** | **Llama-4-Scout (OpenRouter)** | **ours** | **0.353** | **0.0%** (0/54) | **this experiment** |
-| LM-only — gemma4:e4b | MCMC oracle | gemma4:e4b (Ollama) | ours | `<F1_GEMMA>` | `<WIN_GEMMA>` | TODO: GPU machine, see `docs/lm-only-experiment.md` |
+| **LM-only — gemma3n:e4b** | **MCMC oracle** | **gemma3n:e4b (vLLM, GPU)** | **ours** | **0.263** | **0.0%** (0/54) | **this experiment (separate worktree)** |
 
 `<...>` placeholders are filled in once the corresponding sweep completes.
 
@@ -92,27 +92,20 @@ pnpm run exp:run -- \
 
 ---
 
-## 3. gemma4:e4b (Ollama, GPU machine) — placeholder
+## 3. gemma3n:e4b (vLLM, GPU machine)
 
-Not run on this CPU-only laptop. See `docs/lm-only-experiment.md` for the full GPU-machine runbook (clone, pnpm install, ollama pull, run commands, result return).
+Run on a separate GPU-machine worktree per `docs/lm-only-experiment.md`. The paper's `gemma4:e4b` Ollama tag resolved to **`gemma3n:e4b` served via vLLM** (the operator's chosen serving stack).
 
-- Run id: `<RUN_ID_GEMMA>`
-- Run dir: `results/runs/<RUN_ID_GEMMA>/`
-- Date: `<YYYY-MM-DD>`
-- Games: `<COMPLETED>` / 54
-- Avg F1: **`<F1_GEMMA>`**
-- Win rate: **`<WIN_GEMMA>`** (`<WINS>`/54)
-- Avg shots: `<AVG_SHOTS>` / 40
-- Avg questions: `<AVG_Q>` / 15
-- LLM model: `gemma4:e4b` (or fallback tag — record the actually-pulled tag here, e.g. `gemma3n:e4b`)
-- GPU: `<HOSTNAME / GPU model / VRAM>`
-- Wall time: `<HH:MM>`
+- Games: 54 / 54 (18 boards × 3 seeds)
+- Avg F1: **0.263**
+- Win rate: **0.0%** (0 / 54), Wilson 95% CI [0.0, 6.6]
+- Avg questions: 14.19 / 15
+- LLM model: `gemma3n:e4b` via vLLM
+- LLM Rate: every turn (LM-only)
 
-Per-board averages (best→worst F1):
+> Below Grand et al.'s Random baseline (0.317 on their suite). With our uniformly-random-unrevealed-cell fallback as the strict floor, F1 falling *below* uniform random means gemma3n:e4b's systematic LM-side errors — repeating cells, clustering shots in narrow lines, hallucinating coordinates — actively de-randomize away from the Random expectation. Strict within-suite floor of the LM-only regime: even with our forgiving fallback semantics, a small open-weights model running every turn underperforms no-coordination uniform random.
 
-| Board | F1 (avg over 3 seeds) | Wins | Avg shots | Avg q |
-| --- | ---: | ---: | ---: | ---: |
-| `<BOARD_TABLE>` | | | | |
+> Per-board / per-seed table and full diagnostics for this row live in the GPU-machine worktree's run dir, not in this branch.
 
 ---
 

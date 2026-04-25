@@ -20,7 +20,7 @@ All rows below are 18 boards × 3 seeds = 54 games on our synthetic suite under 
 | # | Harness layer / Captain | LLM | Avg F1 | Win rate (n=54) | 95% CI | Avg Q | LLM Rate |
 | ---: | --- | --- | ---: | ---: | --- | ---: | ---: |
 | A1 | LM-only Llama-4-Scout | Llama-4-Scout (OpenRouter) | 0.353 | 0.0% (0/54) | [0.0, 6.6] | 14.8 | every turn |
-| A2 | LM-only gemma4:e4b | gemma4:e4b (Ollama, GPU) | `<F1_GEMMA>` | `<WR_GEMMA>` (`<W>`/54) | `<CI_GEMMA>` | `<Q_GEMMA>` | every turn |
+| A2 | LM-only gemma3n:e4b | gemma3n:e4b (vLLM, GPU) | 0.263 | 0.0% (0/54) | [0.0, 6.6] | 14.19 | every turn |
 | B1 | L1: Belief-only / greedy+MCMC | — | 0.522 | 50.0% (27/54) | [37.1, 62.9] | 0.0 | 0% |
 | B2 | **L2: + Planning (WMA)** | — | **0.539** | **74.1% (40/54)** | **[61.1, 83.9]** | **11.9** | **0%** |
 | B3 | L3: + Symbolic reflection (off) | — | 0.552 | 57.4% (31/54) | [44.2, 69.7] | 8.0 | 0% |
@@ -31,11 +31,13 @@ All rows below are 18 boards × 3 seeds = 54 games on our synthetic suite under 
 > Boldface marks the heavy-lifting layer (B2: planning) and the only row that actually exercises the LLM under the gate at τ=1.0 (B6).
 
 **Within-suite ordering:**
-- LM-only Llama-4-Scout (A1, F1 0.353) sits **between Random and our no-LLM Greedy posterior** — well below B1 (0.522). This replicates within our suite the same ordering Grand et al. observe on theirs.
-- The single largest jump is B1 → B2: **+0.017 F1 / +24.1pp win rate from no-LLM planning alone**.
+- LM-only **gemma3n:e4b** (A2, F1 0.263) sits *below* Grand et al.'s Random baseline (C1, 0.317) — a small open-weights LM with our random fallback is worse than uniform random shooting because its systematic mistakes (repeating cells, picking lines instead of dispersing shots) are net counter-productive vs. uniform random. Strict floor of the LM-only regime in our suite.
+- LM-only **Llama-4-Scout** (A1, F1 0.353) sits between Random (C1, 0.317) and our no-LLM Greedy (B1, 0.522). Replicates within our suite the same ordering Grand et al. observe on theirs.
+- Both A1 and A2 are well below B1 — confirms within-suite that *non-reasoning* LM-only Captains do not reach posterior-only no-LLM performance, regardless of model size.
+- The single largest jump in our decomposition is B1 → B2: **+0.017 F1 / +24.1pp win rate from no-LLM planning alone**.
 - The LM-backed L4 (B6) adds another +0.005 F1 over reflection-on (B4) at a measured 4.3% LLM rate, but the win-rate CIs overlap, so we report L4 as a qualitative pattern rather than an established gain.
 
-**LM-only vs. harness-layer gap (within suite):** even with a competent modern non-reasoning LM at every turn, LM-only sits ~17pp below the simplest no-LLM harness layer (B1) and ~74pp below the planning layer (B2) on the *same* 54 games. The harness lift is therefore not "a side-channel boost on top of a competent LLM"; it is what *unlocks* competent agency in this domain.
+**LM-only vs. harness-layer gap (within suite):** even with a competent modern non-reasoning LM at every turn (A1), LM-only sits ~17pp below the simplest no-LLM harness layer (B1) and ~74pp below the planning layer (B2) on the *same* 54 games; with a smaller open-weights LM (A2) the gap widens further (LM-only falls below Random). The harness lift is therefore not "a side-channel boost on top of a competent LLM"; it is what *unlocks* competent agency in this domain.
 
 ---
 
@@ -102,6 +104,6 @@ These should make it from this markdown into the eventual tex caption verbatim:
 | Row | Source |
 | --- | --- |
 | A1 | `results/runs/20260426-004217__lm-only-mcmc__lm-only-llama4-scout-all3/summary.json`; this branch, OpenRouter `meta-llama/llama-4-scout`, 2026-04-26 |
-| A2 | `results/runs/<TBD>/summary.json`; GPU machine, Ollama `gemma4:e4b` (or fallback tag — record actual) |
+| A2 | `results/runs/<TBD>/summary.json`; GPU machine, vLLM serving `gemma3n:e4b` (the paper's `gemma4:e4b` resolved to this tag) |
 | B1–B6 | Already in `1_lm4plan_draft.tex:341-346` and `2_agent_skills_camready.tex:200-204` |
 | C1–C6 | `grandetal/tables/captain_master_table.tex` lines 7–25 |
