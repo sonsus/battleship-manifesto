@@ -13,6 +13,36 @@ The split exists because grandetal's numbers are on a different 18-board suite, 
 
 ---
 
+## 0. Status (as of 2026-04-26 KST)
+
+### Within-suite rows (this branch)
+
+| Row | Captain | LLM | Avg F1 | Win rate | Status |
+| --- | --- | --- | ---: | ---: | --- |
+| A1 | LM-only Llama-4-Scout | OpenRouter `meta-llama/llama-4-scout` | 0.353 | 0.0% (0/54) | ✅ done |
+| A2 | LM-only gemma3n:e4b | vLLM (GPU worktree) | 0.263 | 0.0% (0/54) | ✅ done |
+| A3 | LM-only gpt-5-nano | OpenRouter `openai/gpt-5-nano`, default reasoning | — | — | 🟡 sweeping (C=12, started 2026-04-26 08:19 KST, ETA ~12:00) |
+| A4 | LM-only gpt-5-mini | OpenRouter `openai/gpt-5-mini`, default reasoning | — | — | ⏳ queued (auto-starts after A3, ETA ~16:00) |
+| B1–B6 | our harness decomposition | — / gemma4:e4b (gated, L4 only) | 0.522 → 0.557 | 50.0% → 53.7% | ✅ already in tex (`tab:decomp-main` / `tab:main`) |
+
+### What changes vs. current tex draft
+
+- **Result data added since the last tex revision:**
+  - A1, A2 fill in two **within-suite LM-only** rows that the current tex tables did not have. Together they cover both ends of the LM-only weak-model regime: a frontier non-reasoning MoE (Llama-4-Scout, F1 0.353) and a small open-weights model (gemma3n:e4b, F1 0.263). Both fall well below B1 (Greedy / Belief-only, 0.522). A2 additionally falls *below* Grand et al.'s Random baseline (0.317), establishing a strict within-suite floor for the LM-only regime.
+  - A3, A4 (in flight) will add two GPT-5-family reasoning rows, both at default `reasoning_effort=medium` per Grand et al. line 374 ("default parameters") and line 446 ("reasoning-capable").
+- **Tex changes that follow** (full list in §4 below; condensed here):
+  1. **`1_lm4plan_draft.tex`** — replace the side-by-side `tab:decomp-main` (lines 331–350) and `tab:external` (lines 352–373) with one within-suite table modeled on §1; demote `tab:external` (now §2) to inline external-context prose in the discussion paragraph at line 376; update the rebuttal at line 387 to cite within-suite A1/A2/A3/A4 rather than the external grandetal row; drop "directional only" wording at line 305.
+  2. **`2_agent_skills_camready.tex`** — same operation against `tab:main` (lines 190–208) and `tab:external` (lines 210–231); update rebuttal at line 241; rewrite the "External baselines situate the harness regime" paragraph at line 234 as a footnote/short context note.
+  3. **`0_arxiv.tex` / `0_cais_sw.tex` / `0_icml_sw.tex`** — propagate the same merge if those wrappers also carry `tab:external` verbatim.
+- **Caveats to carry into captions** (§5 below): win-rate metric mismatch across suites; question pool difference (template DSL vs. Python programs); Spotter difference (MCMC oracle vs. GPT-5 CoT+Code); fallback semantics in `lm-only` (random un-revealed cell); L4 sample-size CI.
+
+### Blockers / pending decisions
+
+- A3 + A4 numbers (sweep in flight). Once both land we have all four within-suite LM-only rows and the merged table is complete.
+- Tex edits not yet started; will execute once A3/A4 are in. Auto-handover: when A4 finishes, rows update in §1 + §6, then we can run `1_lm4plan_draft.tex` / `2_agent_skills_camready.tex` edits in one pass.
+
+---
+
 ## 1. Primary table — within our suite (n=54, fully comparable)
 
 All rows below are 18 boards × 3 seeds = 54 games on our synthetic suite under `--protocol paper --belief mcmc --particles 500`, ε=0.1, 8×8 board, 14 ship cells, 40-shot / 15-question budget. **Win rate** here is *game-completion* (sink all 14 ship cells within the 40-shot budget). Wilson 95% intervals on the win proportion. "Avg Q" is mean questions asked per game (budget 15). "LLM Rate" is the fraction of turns on which the LLM is called.
