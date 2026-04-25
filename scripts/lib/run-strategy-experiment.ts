@@ -47,6 +47,7 @@ export interface StrategyExperimentOptions {
   llmRevisionBudget?: number;
   policyDoubtThreshold?: number;
   protocol?: ProtocolName;
+  concurrency?: number;
   onGameComplete?: (args: {
     boardId: string;
     seedIndex: number;
@@ -87,6 +88,7 @@ export interface ResolvedStrategyExperimentOptions {
   llmRevisionBudget?: number;
   policyDoubtThreshold?: number;
   protocolName: ProtocolName;
+  concurrency: number;
 }
 
 export interface StrategyExperimentResult {
@@ -168,7 +170,27 @@ export function resolveStrategyExperimentOptions(
     llmRevisionBudget: options.llmRevisionBudget,
     policyDoubtThreshold: options.policyDoubtThreshold,
     protocolName,
+    concurrency: Math.max(1, options.concurrency ?? 1),
   };
+}
+
+const STATELESS_STRATEGIES = new Set<StrategyName>([
+  "random",
+  "greedy",
+  "bayes",
+  "bayes-llm",
+  "lm-only",
+  "m",
+  "mra",
+  "cra",
+  "rma",
+  "mra-llm",
+  "wma",
+  "wma-llm-salvage",
+]);
+
+function strategyIsParallelSafe(strategyName: StrategyName): boolean {
+  return STATELESS_STRATEGIES.has(strategyName);
 }
 
 function hashSeed(boardId: string, seed: number): number {
@@ -240,64 +262,106 @@ export async function runStrategyExperiment(
   );
 
   const results: GameResult[] = [];
-  let gameIndex = 0;
   let runStatus: "completed" | "failed" = "completed";
   let errorMessage: string | undefined;
 
-  try {
-    for (const boardId of resolved.boardIds) {
-        const trueBoard = loadBoard(boardId);
-      for (let seed = 0; seed < resolved.seedCount; seed++) {
-        const gameSeed = hashSeed(boardId, seed);
-        const runtimeBundle = strategyNeedsLineage(resolved.strategyName)
-          ? createBattleshipLineageRuntime(trueBoard, {
-              provider: resolved.llmProvider,
-              model: resolved.model,
-              baseUrl: resolved.llmBaseUrl,
-            })
-          : strategyUsesReflectiveRuntime(resolved.strategyName)
-            ? createBattleshipReflectiveRuntime(trueBoard)
-          : strategyUsesWorldRuntime(resolved.strategyName)
-            ? createBattleshipWorldRuntime(trueBoard)
-            : createBattleshipRuntime(trueBoard);
-        const { runtime, gameState } = runtimeBundle;
-        const bridge = new ManifestoBridge(runtime, strategyNeedsLineage(resolved.strategyName));
-        const gameLogger = logger.startGame({
-          gameId: `${boardId}-seed${seed}`,
-          gameIndex,
-          strategyName: resolved.strategyName,
-          policyName: strategy.policyName,
-          beliefKind: resolved.beliefKind,
-          boardId,
-          seed: gameSeed,
-          seedIndex: seed,
-          particleCount: resolved.particleCount,
-          epsilon: resolved.epsilon,
-        });
-
-        const result = await playGame(
-          bridge,
-          gameState,
-          trueBoard,
-          strategy,
-          {
-            beliefKind: resolved.beliefKind,
-            particleCount: resolved.particleCount,
-            epsilon: resolved.epsilon,
-            worldMode: "worldMode" in runtimeBundle ? runtimeBundle.worldMode : false,
-            logger: gameLogger,
-            effectTelemetry: "effectTelemetry" in runtimeBundle
-              ? runtimeBundle.effectTelemetry
-              : undefined,
-          },
-          boardId,
-          gameSeed,
-        );
-        results.push(result);
-        options.onGameComplete?.({ boardId, seedIndex: seed, result });
-        gameIndex += 1;
-      }
+  interface GameTask {
+    boardId: string;
+    seed: number;
+    seedIndex: number;
+    gameIndex: number;
+  }
+  const tasks: GameTask[] = [];
+  let nextGameIndex = 0;
+  for (const boardId of resolved.boardIds) {
+    for (let seed = 0; seed < resolved.seedCount; seed++) {
+      tasks.push({
+        boardId,
+        seed: hashSeed(boardId, seed),
+        seedIndex: seed,
+        gameIndex: nextGameIndex,
+      });
+      nextGameIndex += 1;
     }
+  }
+
+  if (resolved.concurrency > 1 && !strategyIsParallelSafe(resolved.strategyName)) {
+    throw new Error(
+      `Strategy "${resolved.strategyName}" is not declared parallel-safe. ` +
+        `Run with --concurrency 1 or extend STATELESS_STRATEGIES in run-strategy-experiment.ts.`,
+    );
+  }
+
+  async function runOneGame(task: GameTask): Promise<GameResult> {
+    const trueBoard = loadBoard(task.boardId);
+    const runtimeBundle = strategyNeedsLineage(resolved.strategyName)
+      ? createBattleshipLineageRuntime(trueBoard, {
+          provider: resolved.llmProvider,
+          model: resolved.model,
+          baseUrl: resolved.llmBaseUrl,
+        })
+      : strategyUsesReflectiveRuntime(resolved.strategyName)
+        ? createBattleshipReflectiveRuntime(trueBoard)
+      : strategyUsesWorldRuntime(resolved.strategyName)
+        ? createBattleshipWorldRuntime(trueBoard)
+        : createBattleshipRuntime(trueBoard);
+    const { runtime, gameState } = runtimeBundle;
+    const bridge = new ManifestoBridge(runtime, strategyNeedsLineage(resolved.strategyName));
+    const gameLogger = logger.startGame({
+      gameId: `${task.boardId}-seed${task.seedIndex}`,
+      gameIndex: task.gameIndex,
+      strategyName: resolved.strategyName,
+      policyName: strategy.policyName,
+      beliefKind: resolved.beliefKind,
+      boardId: task.boardId,
+      seed: task.seed,
+      seedIndex: task.seedIndex,
+      particleCount: resolved.particleCount,
+      epsilon: resolved.epsilon,
+    });
+
+    return playGame(
+      bridge,
+      gameState,
+      trueBoard,
+      strategy,
+      {
+        beliefKind: resolved.beliefKind,
+        particleCount: resolved.particleCount,
+        epsilon: resolved.epsilon,
+        worldMode: "worldMode" in runtimeBundle ? runtimeBundle.worldMode : false,
+        logger: gameLogger,
+        effectTelemetry: "effectTelemetry" in runtimeBundle
+          ? runtimeBundle.effectTelemetry
+          : undefined,
+      },
+      task.boardId,
+      task.seed,
+    );
+  }
+
+  try {
+    let cursor = 0;
+    const workers: Promise<void>[] = [];
+    const concurrency = Math.max(1, Math.min(resolved.concurrency, tasks.length));
+    for (let worker = 0; worker < concurrency; worker++) {
+      workers.push((async () => {
+        while (true) {
+          const idx = cursor;
+          cursor += 1;
+          if (idx >= tasks.length) return;
+          const task = tasks[idx];
+          const result = await runOneGame(task);
+          results.push(result);
+          options.onGameComplete?.({
+            boardId: task.boardId,
+            seedIndex: task.seedIndex,
+            result,
+          });
+        }
+      })());
+    }
+    await Promise.all(workers);
   } catch (error) {
     runStatus = "failed";
     errorMessage = error instanceof Error ? error.message : String(error);

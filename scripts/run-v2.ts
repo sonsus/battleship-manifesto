@@ -53,6 +53,7 @@ const { values: args } = parseArgs({
     "explain-base-url": { type: "string" },
     label: { type: "string" },
     "log-dir": { type: "string", default: "results/runs" },
+    concurrency: { type: "string" },
   },
 });
 
@@ -88,6 +89,7 @@ async function main(): Promise<void> {
     explainBaseUrl: args["explain-base-url"],
     label: args.label,
     logDir: args["log-dir"]!,
+    concurrency: parseOptionalInt(args.concurrency),
     onGameComplete: ({ boardId, seedIndex, result: game }) => {
       const status = game.won ? "WON" : "LOST";
       console.log(
