@@ -1,6 +1,7 @@
 import type { LLMClientConfig, LLMProvider } from "../llm/client.js";
 import { createLLMClient } from "../llm/factory.js";
 import { BayesLLMStrategy, BayesStrategy, GreedyStrategy, RandomStrategy } from "./bayes-strategies.js";
+import { LMOnlyStrategy } from "./lm-only-strategy.js";
 import { MPStrategy } from "./mp-strategy.js";
 import { MStrategy } from "./m-strategy.js";
 import { MMPStrategy } from "./mmp-strategy.js";
@@ -20,6 +21,7 @@ export type StrategyName =
   | "greedy"
   | "bayes"
   | "bayes-llm"
+  | "lm-only"
   | "m"
   | "cra"
   | "mra"
@@ -89,6 +91,8 @@ export function createStrategy(
         options.llmCandidates ?? 5,
         gamma,
       );
+    case "lm-only":
+      return new LMOnlyStrategy(createLLMClient(defaultClientConfig));
     case "m":
       return new MStrategy(candidateQuestions);
     case "mra":
