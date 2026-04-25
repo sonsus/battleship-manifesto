@@ -18,6 +18,7 @@ export interface StrategyExperimentOptions {
   strategyName: StrategyName;
   boards?: string;
   seeds?: number;
+  seedStart?: number;
   particles?: number;
   belief?: BeliefKind;
   model: string;
@@ -58,6 +59,7 @@ export interface ResolvedStrategyExperimentOptions {
   strategyName: StrategyName;
   boardIds: string[];
   seedCount: number;
+  seedStart: number;
   particleCount: number;
   beliefKind: BeliefKind;
   model: string;
@@ -139,6 +141,7 @@ export function resolveStrategyExperimentOptions(
     strategyName: options.strategyName,
     boardIds: (options.boards ?? "all") === "all" ? getAllBoardIds() : (options.boards ?? "all").split(","),
     seedCount: options.seeds ?? defaults.seedCount,
+    seedStart: options.seedStart ?? 0,
     particleCount: options.particles ?? defaults.particleCount,
     beliefKind: options.belief ?? defaults.beliefKind,
     model: options.model,
@@ -247,7 +250,7 @@ export async function runStrategyExperiment(
   try {
     for (const boardId of resolved.boardIds) {
         const trueBoard = loadBoard(boardId);
-      for (let seed = 0; seed < resolved.seedCount; seed++) {
+      for (let seed = resolved.seedStart; seed < resolved.seedStart + resolved.seedCount; seed++) {
         const gameSeed = hashSeed(boardId, seed);
         const runtimeBundle = strategyNeedsLineage(resolved.strategyName)
           ? createBattleshipLineageRuntime(trueBoard, {
