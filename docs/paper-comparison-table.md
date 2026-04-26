@@ -22,7 +22,7 @@ The split exists because grandetal's numbers are on a different 18-board suite, 
 | A1 | LM-only Llama-4-Scout | OpenRouter `meta-llama/llama-4-scout` | 0.353 | 0.0% (0/54) | ✅ done |
 | A2 | LM-only gemma3n:e4b | vLLM (GPU worktree) | 0.263 | 0.0% (0/54) | ✅ done |
 | A3 | LM-only gpt-5-nano | OpenRouter `openai/gpt-5-nano`, default reasoning | 0.459 | 29.6% (16/54) | ✅ done |
-| A4 | LM-only gpt-5-mini | OpenRouter `openai/gpt-5-mini`, default reasoning | — | — | ⏸️ paused at 1/54 (B04 seed=0 WON F1=0.757); rerun later |
+| A4 | LM-only gpt-5-mini | OpenRouter `openai/gpt-5-mini`, default reasoning | 0.565 | 77.8% (42/54) | ✅ done (51 clean + 9 patch; B16/B17/B18 reran after OpenRouter 402 hit the original sweep tail) |
 | B1–B6 | our harness decomposition | — / gemma4:e4b (gated, L4 only) | 0.522 → 0.557 | 50.0% → 53.7% | ✅ already in tex (`tab:decomp-main` / `tab:main`) |
 
 ### What changes vs. current tex draft
@@ -38,8 +38,8 @@ The split exists because grandetal's numbers are on a different 18-board suite, 
 
 ### Blockers / pending decisions
 
-- A3 + A4 numbers (sweep in flight). Once both land we have all four within-suite LM-only rows and the merged table is complete.
-- Tex edits not yet started; will execute once A3/A4 are in. Auto-handover: when A4 finishes, rows update in §1 + §6, then we can run `1_lm4plan_draft.tex` / `2_agent_skills_camready.tex` edits in one pass.
+- All four within-suite LM-only rows (A1, A2, A3, A4) are filled in. The merged table is complete.
+- Tex edits ready to execute next pass — see §4 below for the file-and-line plan.
 
 ---
 
@@ -52,6 +52,7 @@ All rows below are 18 boards × 3 seeds = 54 games on our synthetic suite under 
 | A1 | LM-only Llama-4-Scout | Llama-4-Scout (OpenRouter) | 0.353 | 0.0% (0/54) | [0.0, 6.6] | 14.8 | every turn |
 | A2 | LM-only gemma3n:e4b | gemma3n:e4b (vLLM, GPU) | 0.263 | 0.0% (0/54) | [0.0, 6.6] | 14.19 | every turn |
 | A3 | LM-only gpt-5-nano | gpt-5-nano (OpenRouter, reasoning_effort=medium) | 0.459 | 29.6% (16/54) | [19.1, 42.8] | 12.4 | every turn |
+| A4 | **LM-only gpt-5-mini** | **gpt-5-mini (OpenRouter, reasoning_effort=medium)** | **0.565** | **77.8% (42/54)** | **[65.1, 86.8]** | **14.2** | **every turn** |
 | B1 | L1: Belief-only / greedy+MCMC | — | 0.522 | 50.0% (27/54) | [37.1, 62.9] | 0.0 | 0% |
 | B2 | **L2: + Planning (WMA)** | — | **0.539** | **74.1% (40/54)** | **[61.1, 83.9]** | **11.9** | **0%** |
 | B3 | L3: + Symbolic reflection (off) | — | 0.552 | 57.4% (31/54) | [44.2, 69.7] | 8.0 | 0% |
@@ -65,13 +66,22 @@ All rows below are 18 boards × 3 seeds = 54 games on our synthetic suite under 
 - A2 **gemma3n:e4b** (F1 0.263) — *below* Grand et al.'s Random baseline (C1, 0.317). A small open-weights non-reasoning LM with our random fallback is worse than uniform random shooting because its systematic mistakes (repeating cells, picking lines instead of dispersing shots) actively de-randomize away from the Random expectation. Strict floor of the LM-only regime.
 - A1 **Llama-4-Scout** (F1 0.353) — between Random (0.317) and our no-LLM Greedy (B1, 0.522). Mid non-reasoning MoE; replicates within our suite the same ordering Grand et al. observe on theirs.
 - A3 **gpt-5-nano** with default reasoning (F1 0.459, **29.6% win rate**) — first row to enter non-zero win territory; reasoning lifts F1 by +0.106 over A1 (no-reasoning Llama-4-Scout) but **still does not reach B1's 0.522 / 50.0% WR**. Wilson 95% CI on win rate is [19.1, 42.8]% vs. B1 [37.1, 62.9]% — the CIs touch but A3's center sits below B1's. Reading: a small reasoning model contributes meaningful per-turn information yet does not catch the no-LLM posterior baseline.
-- A4 **gpt-5-mini** (paused at 1/54, F1 0.757 on the one completed game) — single-sample preview puts mini in WMA-territory (B2 0.539 / 74.1% WR), but n=1 so this is anecdotal until the full sweep finishes.
+- A4 **gpt-5-mini** with default reasoning (F1 **0.565**, **77.8% win rate**) — **first LM-only row to clear B1**, and to reach the planning layer (B2: 0.539 F1 / 74.1% WR). Wilson 95% CIs heavily overlap (A4: [65.1, 86.8] vs. B2: [61.1, 83.9]); we read A4 ≈ B2 within our sample size. F1 jumps +0.106 over A3 again at the next reasoning-class step (small → mid).
 
-**B1 boundary holds across all measured A-rows.** Every completed LM-only Captain (A1, A2, A3) sits below B1 on F1 *and* on win rate. The boundary is therefore consistent within our suite: a no-LLM posterior baseline is harder for LM-only to reach than for their harness counterpart to produce.
+**B1 boundary is crossed by mid-tier reasoning, not by smaller models.** A1, A2, A3 all sit below B1 on F1 *and* WR; A4 sits above B1 on both. The within-suite picture is therefore more nuanced than "LM-only < no-LLM harness across the board": a *non-reasoning* LM-only Captain (regardless of model size, 4B → 109B) does not reach the no-LLM posterior baseline, but a *reasoning* LM-only Captain at mid-tier (gpt-5-mini) reaches the no-LLM planning layer.
 
-**The single largest jump in our decomposition is still B1 → B2:** +0.017 F1 / +24.1pp win rate from no-LLM planning alone. The LM-backed L4 (B6) adds another +0.005 F1 over reflection-on (B4) at a measured 4.3% LLM rate, but the win-rate CIs overlap, so we report L4 as a qualitative pattern rather than an established gain.
+**The harness layer-by-layer story is unchanged.** B1 → B2 (planning) still adds +0.017 F1 / +24.1pp win rate at **0% LLM calls**; A4 reaches the same neighborhood at **100% LLM calls (every turn)**. These are two alternative ways to recover the same level of in-domain competence, and the decomposition isolates the *no-LLM* path. The L4 (B6) row adds +0.005 F1 over B4 at 4.3% LLM rate; that is a residual within the harness-first regime, not a contestant against A4.
 
-**LM-only vs. harness-layer gap (within suite):** even with a reasoning model at every turn (A3, F1 0.459 / WR 29.6%), LM-only sits ~6pp below the simplest no-LLM harness layer (B1) on F1 and ~20pp below it on win rate; with a non-reasoning mid-tier model (A1) the gap on F1 widens to ~17pp; with a small open-weights model (A2) LM-only falls below Random. The harness lift is therefore not "a side-channel boost on top of a competent LLM"; it is what *unlocks* competent agency in this domain across at least three model classes (small open-weights, mid-tier non-reasoning MoE, small reasoning).
+**LM-only vs. harness-layer comparison (refined, within suite):**
+- *Non-reasoning LM-only at any model size we measured (A1: Llama-4-Scout, A2: gemma3n:e4b) does not reach B1 (Greedy / Belief-only).* This is the narrow form of "harness unlocks competent agency in this domain".
+- *Reasoning at small scale (A3: gpt-5-nano) closes most of the gap to B1 but does not cross it.*
+- *Reasoning at mid scale (A4: gpt-5-mini) reaches B2 (WMA / planning) at every-turn LLM cost.* This is informative even though it is not surprising — what it shows is that the *planning competence* B2 produces with zero LLM calls is *also* recoverable by spending an LLM call every turn at this model class. The decomposition is therefore not "LLMs cannot do this"; it is "the harness recovers planning competence without LLMs, and the LLM's residual role is to be measured *within* that harness regime, not against it."
+
+The harness lift (B1 → B2: +24.1pp WR, 0% LLM) and the LM-only-with-mid-reasoning route (A4: 77.8% WR, 100% LLM) are not in conflict. They cover *different* claims:
+- B1 → B2 establishes *planning is the heavy-lifting layer* internal to a harness-first decomposition.
+- A4 establishes that *the same domain can also be solved by an every-turn mid-reasoning LM*, which is consistent with Grand et al.'s GPT-5 LM-only F1 0.716 on their suite.
+
+The two together strengthen the decomposition's claim — *the LLM's residual role inside a harness is small (B6: 4.3% LLM rate, +0.005 F1 over B4)* — rather than weaken it: even where an LM-only path exists (A4), the residual question "what does the LLM still do *inside* a working harness?" is what our decomposition isolates, and the answer (small) is what we report.
 
 ---
 
@@ -140,6 +150,6 @@ These should make it from this markdown into the eventual tex caption verbatim:
 | A1 | `results/runs/20260426-004217__lm-only-mcmc__lm-only-llama4-scout-all3/summary.json`; this branch, OpenRouter `meta-llama/llama-4-scout`, 2026-04-26 |
 | A2 | `results/runs/<TBD>/summary.json`; GPU machine, vLLM serving `gemma3n:e4b` (the paper's `gemma4:e4b` resolved to this tag) |
 | A3 | `results/runs/20260426-081945__lm-only-mcmc__lm-only-gpt5-nano-all3-c12/summary.json`; this branch, OpenRouter `openai/gpt-5-nano` (default `reasoning_effort=medium`), --concurrency 12, 2026-04-26 |
-| A4 (partial) | `results/runs/20260426-115425__lm-only-mcmc__lm-only-gpt5-mini-all3-c12/games/010__b04__seed0.json`; sweep paused at 1/54 |
+| A4 | 51 clean games from `results/runs/20260426-182605__lm-only-mcmc__lm-only-gpt5-mini-all3-c12-rerun/games.jsonl` (excluding B16,B17,B18 — those got OpenRouter 402 mid-game) + 9 patch games from `results/runs/20260426-214138__lm-only-mcmc__lm-only-gpt5-mini-patch-b16-b18/games.jsonl`. Combined deterministically: drop B16/B17/B18 from rerun, append patch. OpenRouter `openai/gpt-5-mini` (default `reasoning_effort=medium`), --concurrency 12 (rerun) and 9 (patch), 2026-04-26. |
 | B1–B6 | Already in `1_lm4plan_draft.tex:341-346` and `2_agent_skills_camready.tex:200-204` |
 | C1–C6 | `grandetal/tables/captain_master_table.tex` lines 7–25 |

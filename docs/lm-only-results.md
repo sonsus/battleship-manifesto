@@ -20,7 +20,7 @@ Within-suite LM-only Captain results on our 18-board synthetic suite. Replaces t
 | **LM-only — Llama-4-Scout** | **MCMC oracle** | **Llama-4-Scout (OpenRouter)** | **ours** | **0.353** | **0.0%** (0/54) | **this experiment** |
 | **LM-only — gemma3n:e4b** | **MCMC oracle** | **gemma3n:e4b (vLLM, GPU)** | **ours** | **0.263** | **0.0%** (0/54) | **this experiment (separate worktree)** |
 | **LM-only — gpt-5-nano** | **MCMC oracle** | **gpt-5-nano (OpenRouter, reasoning_effort=medium)** | **ours** | **0.459** | **29.6%** (16/54) | **this experiment** |
-| LM-only — gpt-5-mini | MCMC oracle | gpt-5-mini (OpenRouter, reasoning_effort=medium) | ours | (paused 1/54: F1 0.757) | TBD | rerun later, see §4 below |
+| **LM-only — gpt-5-mini** | **MCMC oracle** | **gpt-5-mini (OpenRouter, reasoning_effort=medium)** | **ours** | **0.565** | **77.8%** (42/54) | **this experiment (51 clean + 9 patch after OpenRouter 402)** |
 
 `<...>` placeholders are filled in once the corresponding sweep completes.
 
@@ -182,13 +182,51 @@ pnpm run exp:run -- \
 
 ---
 
-## 5. gpt-5-mini (paused — rerun pending)
+## 5. gpt-5-mini (OpenRouter, default reasoning_effort=medium) — composite of two runs
 
-Sweep was started right after nano finished (2026-04-26 11:54 KST) at `--concurrency 12`, but stopped after **1 / 54** games for time reasons. Single-game preview: **B04 seed=0 WON F1 0.757, shots=23, q=15** — sits in WMA-territory (B2 0.539 / 74.1% WR), but n=1 is purely anecdotal and not reportable as a row in the unified table until the full 54-game sweep completes.
+The headline mini number is a deterministic merge of two runs:
 
-Partial run dir (1 game, kept on disk for provenance): `results/runs/20260426-115425__lm-only-mcmc__lm-only-gpt5-mini-all3-c12/games/010__b04__seed0.json`.
+1. **Rerun** (`20260426-182605__lm-only-mcmc__lm-only-gpt5-mini-all3-c12-rerun`, started 18:26 KST, finished 19:50 KST, --concurrency 12). 54 games launched; the last ~3 boards (B16, B17, B18) hit OpenRouter 402 Payment Required mid-game when the prepaid balance was exhausted. Those boards' avg-questions collapsed (B18: q=3.3, B17: q=8.3, B16: q=13.7 vs. normal q=12–15) — symptom that the LLM was responding with HTTP 402 and the strategy fell back to uniform random shooting. The 51 games on B01..B15 are clean.
+2. **Patch** (`20260426-214138__lm-only-mcmc__lm-only-gpt5-mini-patch-b16-b18`, started 21:41 KST, finished ~22:00 KST, --concurrency 9). Re-ran exactly B16, B17, B18 × 3 seeds = 9 games after the user topped up the OpenRouter balance.
 
-To resume (full re-run, recommend a new label so the partial run dir is left untouched):
+Composite recipe (in `lm-only-results.md` as the source of truth): take the 51 games from the rerun where `boardId not in {B16, B17, B18}`, append the 9 games from the patch run, total = 54.
+
+- Combined games: 54 / 54 (18 boards × 3 seeds)
+- Avg F1: **0.565** (raw 0.5648)
+- Win rate: **77.8%** (42 / 54), Wilson 95% CI [65.1, 86.8]
+- Avg shots: 34.5 / 40
+- Avg questions: 14.17 / 15
+- Avg hits: 13.46 / 14 ship cells
+- LLM model: `openai/gpt-5-mini` via OpenRouter, **default `reasoning_effort=medium`**
+- Wall time: rerun 1h 24m + patch ~20m = ~1h 44m total at C=12 / C=9
+- 1 transient JSON parse failure across the combined run; otherwise no fallback dominance.
+
+Per-board averages (best→worst F1, n=3 seeds each, composite):
+
+| Board | F1 | Wins | Avg shots | Avg q |
+| --- | ---: | ---: | ---: | ---: |
+| B08 | 0.684 | 3/3 | 27.0 | 15.0 |
+| B05 | 0.633 | 3/3 | 30.3 | 13.7 |
+| B04 | 0.625 | 3/3 | 31.0 | 13.7 |
+| B02 | 0.617 | 3/3 | 31.7 | 12.3 |
+| B13 | 0.614 | 3/3 | 31.7 | 14.0 |
+| B17 | 0.611 | 3/3 | 32.7 | 14.7 |
+| B01 | 0.609 | 3/3 | 32.0 | 14.7 |
+| B10 | 0.605 | 2/3 | 30.7 | 12.3 |
+| B09 | 0.580 | 3/3 | 35.0 | 15.0 |
+| B18 | 0.560 | 2/3 | 35.0 | 14.7 |
+| B03 | 0.551 | 2/3 | 34.0 | 12.3 |
+| B07 | 0.543 | 3/3 | 37.7 | 14.7 |
+| B11 | 0.532 | 3/3 | 38.7 | 15.0 |
+| B12 | 0.530 | 2/3 | 37.7 | 14.3 |
+| B15 | 0.491 | 1/3 | 38.0 | 14.7 |
+| B16 | 0.488 | 1/3 | 39.3 | 14.7 |
+| B14 | 0.451 | 1/3 | 39.3 | 14.3 |
+| B06 | 0.442 | 1/3 | 39.0 | 15.0 |
+
+> **Crosses B1 (Greedy 0.522) and reaches B2 (WMA 0.539 / WR 74.1%).** Wilson 95% CIs on WR overlap with B2's [61.1, 83.9]; A4's center is +3.7pp above B2's. Within our sample size we read A4 ≈ B2.
+
+### Reproduce (rerun)
 
 ```bash
 set -a; source path/to/.env; set +a
@@ -202,33 +240,33 @@ pnpm run exp:run -- \
   --boards all --seeds 3 \
   --protocol paper --belief mcmc --particles 500 \
   --concurrency 12 \
-  --label lm-only-gpt5-mini-all3-c12-rerun
+  --label lm-only-gpt5-mini-all3-c12
 ```
 
-Expected wall time: ~4 hours at C=12. Approx cost: ~$8 OpenRouter (default `reasoning_effort=medium`).
+Approx cost: ~$8 OpenRouter (ensure ≥$10 balance before starting; the original sweep ran out at ~85% completion).
 
 ---
 
 ## 6. Reading
 
-We now have three completed LM-only Captain rows on our 18-board × 3-seed suite (A1 Llama-4-Scout, A2 gemma3n:e4b, A3 gpt-5-nano), plus one paused row (A4 gpt-5-mini, 1/54 with F1 0.757 — anecdotal, not yet reportable). Layered against our no-LLM baseline (B1 Greedy / Belief-only F1 0.522 / WR 50.0%):
+Four completed LM-only Captain rows on our 18-board × 3-seed suite, layered against our no-LLM baselines (B1 Greedy F1 0.522 / WR 50.0%, B2 WMA F1 0.539 / WR 74.1%):
 
-| Row | LM-only Captain | F1 | Win rate (n=54) | Compared to B1 (Greedy 0.522 / WR 50.0%) |
-| --- | --- | ---: | ---: | --- |
-| A2 | gemma3n:e4b (small open-weights, no reasoning) | 0.263 | 0.0% | below Random (0.317) |
-| A1 | Llama-4-Scout (mid-tier MoE, no reasoning) | 0.353 | 0.0% | between Random and B1 |
-| A3 | gpt-5-nano (small reasoning, default medium) | 0.459 | 29.6% | non-zero wins, still below B1 |
-| A4 (1/54) | gpt-5-mini (mid-tier reasoning, default medium) | 0.757 (n=1) | TBD | one-shot preview puts it in WMA territory |
+| Row | LM-only Captain | F1 | Win rate (n=54) | vs. B1 (Greedy) | vs. B2 (WMA) |
+| --- | --- | ---: | ---: | --- | --- |
+| A2 | gemma3n:e4b (small, no reasoning) | 0.263 | 0.0% | below Random (0.317) | far below |
+| A1 | Llama-4-Scout (109B MoE, no reasoning) | 0.353 | 0.0% | between Random and B1 | far below |
+| A3 | gpt-5-nano (small reasoning) | 0.459 | 29.6% | below B1 | below |
+| **A4** | **gpt-5-mini (mid reasoning)** | **0.565** | **77.8%** | **above** | **≈ B2 (CIs overlap)** |
 
-**Key reading from the three completed rows:**
+**Key readings:**
 
-1. **The B1 boundary holds across all three completed LM-only Captains.** Even with default-medium reasoning at every turn (A3), LM-only sits below the no-LLM Greedy posterior on both F1 and win rate. The "harness is just a good solver" rebuttal in `1_lm4plan_draft.tex:387` / `2_agent_skills_camready.tex:241` has a within-suite anchor for *small open-weights*, *non-reasoning mid-tier MoE*, and *small reasoning* model classes simultaneously.
-2. **Reasoning helps, but does not catch B1 on its own (with a small reasoning model).** A1 → A3 is +0.106 F1 / +29.6pp win rate at the same model-class step from "no reasoning" to "default reasoning, smallest GPT-5 family member". The remaining ~6pp F1 / ~20pp WR gap to B1 is the residual that the planning layer (B2) covers without an LLM.
-3. **A2 below Random is a meaningful within-suite floor.** With our random fallback as the strict floor, F1 below uniform random shows that small open-weights LM choices actively de-randomize away from uniform — a stronger statement than "weak LMs are noisy".
-4. **The decomposition is not "good solver vs. LLM".** Our planning gap (B1 → B2: +0.017 F1 / +24.1pp win rate) remains the dominant within-suite signal; the LM-only rows establish that the LLM, on its own, does not recover even greedy posterior performance in this domain at any of the three model classes we measured.
-5. **A4 will refine the upper-bound question.** One full sweep of gpt-5-mini will tell us whether a *mid-tier* reasoning model can clear B1 on our suite. The 1-game preview hints yes, but with n=1 we treat it as anecdotal and rerun later.
+1. **Non-reasoning LM-only at any model size we measured does not reach B1.** A1 (Llama-4-Scout, 109B MoE active 17B) and A2 (gemma3n:e4b, ~4B effective) both sit at WR 0%, F1 well below B1. Model size is not the missing ingredient — *reasoning at inference time is*.
+2. **A2 below Random is a meaningful within-suite floor.** With our random fallback as the strict floor, F1 below uniform random shows that small open-weights LM choices actively de-randomize away from uniform — a stronger statement than "weak LMs are noisy".
+3. **Reasoning at small scale (A3) closes most of the B1 gap but does not cross it.** A1 → A3 (no reasoning → small reasoning) lifts F1 +0.106 and WR +29.6pp. The remaining ~6pp F1 / ~20pp WR gap to B1 is the residual the planning layer (B2) covers without an LLM.
+4. **Reasoning at mid scale (A4) crosses B1 and reaches B2.** A3 → A4 (small → mid reasoning) lifts F1 +0.106 again, WR +48.2pp. A4 sits at the same WR neighborhood as B2 (74.1%), with overlapping Wilson CIs. **The harness's heavy-lifting layer (planning) is reachable two ways within our suite: (i) by adding planning structure with zero LLM calls (B2), or (ii) by spending an LLM call every turn at mid-reasoning class (A4).**
+5. **The decomposition's question changes shape, not validity.** "Harness is just a good solver" was the rebuttal we wanted to close *within-suite*. With A1, A2, A3 below B1, the "non-reasoning LM-only ≪ no-LLM harness" claim is closed. With A4 ≈ B2, the more nuanced claim becomes: *the same competence is recoverable two ways, and our decomposition isolates the no-LLM path*. The LLM-residual at L4 (B6) is then a separate question — measured *inside* the harness regime, not against an LM-only contender — and that residual stays small (4.3% LLM rate, +0.005 F1 over B4).
 
-**Caveats** (full list in §7): the LM-only F1 is mixture of pure LM and Random by the fallback rate, so the absolute F1 is regularized toward Random — a more permissive parser or stateful prompting could lift the absolute number, but the within-suite ordering vs. B1 is unlikely to flip given the cross-model consistency.
+**Caveats** (full list in §7): the LM-only F1 is regularized by the fallback rate (mixture with Random); A1 has ~50% fallback, A3 has ~8%, A4 has near-zero fallback (1 transient parse fail across 54 games + ~2,800 turns). A4's number is therefore the "cleanest" LM-only data point.
 
 ---
 
